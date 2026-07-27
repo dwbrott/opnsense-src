@@ -21,7 +21,7 @@ nooptions	LOCK_PROFILING
 
 # OPNsense standard features (from SMP-ARM)
 options 	DDB
-options 	GEOM_BDE
+#options 	GEOM_BDE ## deprecated for FreeBSD 15
 options 	GEOM_ELI
 options 	GEOM_MIRROR
 options 	IPFIREWALL_DEFAULT_TO_ACCEPT
