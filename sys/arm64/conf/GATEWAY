@@ -97,3 +97,6 @@ device		uvscom
 
 # DTBs
 makeoptions	MODULES_EXTRA+="dtb/freescale"
+
+# Create kernel.bin file
+makeoptions     WITH_KERNEL_BIN=1
