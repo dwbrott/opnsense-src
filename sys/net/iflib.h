@@ -452,7 +452,9 @@ int iflib_device_shutdown(device_t);
 int iflib_device_probe_vendor(device_t);
 
 int iflib_device_iov_init(device_t, uint16_t, const nvlist_t *);
+int iflib_device_iov_init_restart(device_t, uint16_t, const nvlist_t *);
 void iflib_device_iov_uninit(device_t);
+void iflib_device_iov_uninit_restart(device_t);
 int iflib_device_iov_add_vf(device_t, uint16_t, const nvlist_t *);
 
 /*
@@ -476,6 +478,7 @@ void iflib_irq_free(if_ctx_t ctx, if_irq_t irq);
 void iflib_io_tqg_attach(struct grouptask *gt, void *uniq, int cpu,
     const char *name);
 
+/* Configuration task callbacks must return when iflib_in_detach() is true. */
 void iflib_config_task_init(if_ctx_t ctx, struct task *config_task,
     task_fn_t *fn);
 void iflib_config_task_enqueue(if_ctx_t ctx, struct task *config_task);
