@@ -38,6 +38,7 @@
 #include <sys/module.h>
 #include <sys/rman.h>
 #include <sys/pciio.h>
+#include <dev/pci/pcivar.h>
 #include <sys/pcpu.h>
 #include <sys/proc.h>
 #include <sys/socket.h>
