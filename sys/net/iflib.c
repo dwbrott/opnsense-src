@@ -5135,7 +5135,6 @@ iflib_device_register(device_t dev, void *sc, if_shared_ctx_t sctx, if_ctx_t *ct
 #endif
 	}
 	iflib_reset_qvalues(ctx);
-	IFNET_WLOCK();
 	CTX_LOCK(ctx);
 	IFLIB_REGISTER_FAIL_POINT(dev, register_before_attach_pre, err,
 	    fail_cleanup);
@@ -5368,7 +5367,6 @@ iflib_device_register(device_t dev, void *sc, if_shared_ctx_t sctx, if_ctx_t *ct
 	iflib_add_pfil(ctx);
 	ctx->ifc_flags |= IFC_INIT_DONE;
 	CTX_UNLOCK(ctx);
-	IFNET_WUNLOCK();
 
 	/* Create led(4) devices if the driver defined the method */
 	kobj_desc = &ifdi_led_func_desc;
@@ -5383,9 +5381,8 @@ fail_detach:
 	STATE_LOCK(ctx);
 	ctx->ifc_flags |= IFC_IN_DETACH;
 	STATE_UNLOCK(ctx);
-	/* Tasks may need either lock; ether_ifdetach() takes ifnet_detach_sx. */
+	/* Tasks may need the context lock; ether_ifdetach() may sleep. */
 	CTX_UNLOCK(ctx);
-	IFNET_WUNLOCK();
 	taskqueue_drain_all(ctx->ifc_tq);
 #ifdef PCI_IOV
 	/*
@@ -5402,7 +5399,6 @@ fail_detach:
 	}
 #endif
 	ether_ifdetach(ctx->ifc_ifp);
-	IFNET_WLOCK();
 	CTX_LOCK(ctx);
 	goto fail_cleanup_detaching;
 
@@ -5423,14 +5419,12 @@ fail_cleanup_detaching:
 
 	if (ctx->ifc_tq != NULL) {
 		/*
-		 * Drain without holding the ifnet or context locks so configuration
-		 * tasks can run to completion.  On fail_detach a second drain also
-		 * catches tasks queued during the first drain.
+		 * Drain without holding the context lock so configuration tasks can
+		 * run to completion.  On fail_detach a second drain also catches
+		 * tasks queued during the first drain.
 		 */
 		CTX_UNLOCK(ctx);
-		IFNET_WUNLOCK();
 		taskqueue_drain_all(ctx->ifc_tq);
-		IFNET_WLOCK();
 		CTX_LOCK(ctx);
 	}
 
@@ -5443,18 +5437,12 @@ fail_cleanup_detaching:
 	/*
 	 * A successful IFDI_ATTACH_PRE must be matched by IFDI_DETACH, even
 	 * when registration fails before queue allocation.  Match
-	 * iflib_device_deregister by detaching before taskqueue_free, and avoid
-	 * holding IFNET_WLOCK across driver detach (LinuxKPI workqueue drain).
+	 * iflib_device_deregister by detaching before taskqueue_free.
 	 */
 	if (attach_pre_succeeded) {
-		IFNET_WUNLOCK();
 		IFDI_DETACH(ctx);
 		if (queues_allocated)
 			IFDI_QUEUES_FREE(ctx);
-		/* Reacquire the global lock before the context lock. */
-		CTX_UNLOCK(ctx);
-		IFNET_WLOCK();
-		CTX_LOCK(ctx);
 	}
 	if (ctx->ifc_tq != NULL) {
 		taskqueue_free(ctx->ifc_tq);
@@ -5464,7 +5452,6 @@ fail_cleanup_detaching:
 		iflib_free_intr_mem(ctx);
 
 	CTX_UNLOCK(ctx);
-	IFNET_WUNLOCK();
 	iflib_deregister(ctx);
 	device_set_softc(ctx->ifc_dev, NULL);
 	if (ctx->ifc_flags & IFC_SC_ALLOCATED)
@@ -5927,7 +5914,7 @@ iflib_queues_alloc(if_ctx_t ctx)
 	iflib_txq_t txq;
 	iflib_rxq_t rxq;
 	iflib_fl_t fl = NULL;
-	int i, j, cpu, err, txconf, rxconf;
+	int i, j, cpu, err;
 	iflib_dma_info_t ifdip;
 	uint32_t *rxqsizes = scctx->isc_rxqsizes;
 	uint32_t *txqsizes = scctx->isc_txqsizes;
@@ -5967,7 +5954,7 @@ iflib_queues_alloc(if_ctx_t ctx)
 	/*
 	 * XXX handle allocation failure
 	 */
-	for (txconf = i = 0, cpu = CPU_FIRST(); i < ntxqsets; i++, txconf++, txq++, cpu = CPU_NEXT(cpu)) {
+	for (i = 0, cpu = CPU_FIRST(); i < ntxqsets; i++, txq++, cpu = CPU_NEXT(cpu)) {
 		/* Set up some basics */
 
 		if ((ifdip = malloc(sizeof(struct iflib_dma_info) * ntxqs,
@@ -6022,7 +6009,7 @@ iflib_queues_alloc(if_ctx_t ctx)
 		}
 	}
 
-	for (rxconf = i = 0; i < nrxqsets; i++, rxconf++, rxq++) {
+	for (i = 0; i < nrxqsets; i++, rxq++) {
 		/* Set up some basics */
 		callout_init(&rxq->ifr_watchdog, 1);
 

@@ -29,27 +29,40 @@
 .\"
 .\" * Other names and brands may be claimed as the property of others.
 .\"
-.Dd August 12, 2026
+.Dd September 2, 2026
 .Dt IX 4
 .Os
 .Sh NAME
 .Nm ix
 .Nd Intel 10Gb Ethernet driver
 .Sh SYNOPSIS
-To compile this driver into the kernel,
-place the following lines in your
-kernel configuration file:
-.Bd -ragged -offset indent
-.Cd "device iflib"
-.Cd "device ix"
-.Ed
+.Cd device iflib
+.Cd device ix
 .Pp
-Alternatively, to load the driver as a
-module at boot time, place the following line in
+In
 .Xr loader.conf 5 :
-.Bd -literal -offset indent
-if_ix_load="YES"
-.Ed
+.Cd hw.ix.max_interrupt_rate
+.Cd hw.ix.flow_control
+.Cd hw.ix.advertise_speed
+.Cd hw.ix.enable_msix
+.Cd hw.ix.allow_unsupported_sfp
+.Cd hw.ix.enable_fdir
+.Cd hw.ix.enable_rss
+.Cd hw.ix.enable_aim
+.Cd if_ix_load="YES"
+.Pp
+In
+.Xr loader.conf 5
+or
+.Xr sysctl.conf 5 :
+.Cd dev.ix.?.debug.dump.clusters
+.Cd dev.ix.?.debug.dump.dump
+.Cd dev.ix.?.debug.fw_log.severity. Ns Aq Ar module
+.Cd dev.ix.?.debug.fw_log.register
+.Cd dev.ix.?.debug.fw_log.on_load
+.Cd dev.ix.?.eee_state
+.Cd dev.ix.?.eee.tx_lpi_count
+.Cd dev.ix.?.eee.rx_lpi_count
 .Sh DESCRIPTION
 The
 .Nm
@@ -59,6 +72,24 @@ The driver supports Jumbo Frames, MSIX, TSO, and RSS.
 The identification LED for each port is controlled through its
 .Pa /dev/led/ix*
 device node.
+.Pp
+On adapters and ports that expose PCI power-management wake, the driver
+supports the
+.Cm wol_magic ,
+.Cm wol_ucast ,
+and
+.Cm wol_mcast
+capabilities shown by
+.Xr ifconfig 8 .
+The NVM APME setting selects whether magic-packet wake is enabled by default
+without hiding wake modes that the hardware and board support.
+Waking the system from an ACPI sleep state also requires enabling the
+corresponding device wake source when it is exposed, for example:
+.Bd -literal -offset indent
+sysctl dev.ix.0.wake=1
+.Ed
+The interface wake capabilities select the controller packet filters; they do
+not enable the ACPI wake source.
 .Pp
 For questions related to hardware requirements,
 refer to the documentation supplied with your Intel 10GbE adapter.
@@ -217,7 +248,7 @@ Output must be redirected to a file
 and decoded by Intel Customer Support.
 .Pp
 This feature is only supported on E610.
-.It Va dev.ix.?.debug.fw_log.severity.<module>
+.It Va dev.ix.?.debug.fw_log.severity. Ns Aq Ar module
 Specify firmware logging verbosity level for the specified module.
 Available levels include:
 .Pp
